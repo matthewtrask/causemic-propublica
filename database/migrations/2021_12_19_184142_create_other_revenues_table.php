@@ -15,7 +15,7 @@ class CreateOtherRevenuesTable extends Migration
     {
         Schema::create('other_revenues', function (Blueprint $table) {
             $table->id();
-            $table->integer('organization_id')->nullable();
+            $table->integer('organization_id')->unique()->nullable();
             $table->string('description')->nullable();
             $table->string('total_revenue_amt')->nullable();
             $table->string('business_cd')->nullable();

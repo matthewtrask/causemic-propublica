@@ -13,6 +13,8 @@ class Organization extends Model
 
     protected $fillable = [
         'propublica_url',
+        'ein',
+        'tax_year'
     ];
 
     public function pdfLinks(): HasOne
@@ -48,5 +50,20 @@ class Organization extends Model
     public function miscOtherFinancial(): HasMany
     {
         return $this->hasMany(MiscOtherRevenue::class);
+    }
+
+    public function totalRevenue(): HasOne
+    {
+        return $this->hasOne(TotalRevenue::class);
+    }
+
+    public function grant(): HasOne
+    {
+        return $this->hasOne(Grant::class);
+    }
+
+    public function comp(): HasOne
+    {
+        return $this->hasOne(Comp::class);
     }
 }

@@ -15,7 +15,7 @@ class CreateNotablesTable extends Migration
     {
         Schema::create('notables', function (Blueprint $table) {
             $table->id();
-            $table->integer('organization_id');
+            $table->integer('organization_id')->unique();
             $table->string('notable_contribution')->nullable();
             $table->string('notable_program_services')->nullable();
             $table->string('notable_investment_income')->nullable();

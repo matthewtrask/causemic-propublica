@@ -16,7 +16,7 @@ class CreateMiscFinancialsTable extends Migration
     {
         Schema::create('misc_financials', function (Blueprint $table) {
             $table->id();
-            $table->integer('organization_id');
+            $table->integer('organization_id')->unique();
             $table->string(Str::lower(Str::snake('TotalAssetsBoyAmt', '_')));
             $table->string(Str::lower(Str::snake('TotalAssetsEoyAmt', '_')));
             $table->string(Str::lower(Str::snake('TotalLiabilitiesBoyAmt', '_')));

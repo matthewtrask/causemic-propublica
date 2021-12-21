@@ -5,15 +5,14 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
-class Pdf extends Model
+class InformationTech extends Model
 {
     use HasFactory;
 
     protected $fillable = [
         'organization_id',
-        'pdf_link_1',
-        'pdf_link_2',
-        'pdf_link_3',
-        'pdf_link_4'
+        'information_technology_grp_total_amt',
+        'information_technology_grp_program_services_amt',
+        'information_technology_grp_fundraising_amt'
     ];
 }

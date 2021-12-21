@@ -10,6 +10,7 @@ class OrganizationMember extends Model
     use HasFactory;
 
     protected $fillable = [
+        'organization_id',
         'person_name',
         'title',
         'reportable_comp_amt_from_org',

@@ -16,7 +16,7 @@ class CreateYearlyFinancialsTable extends Migration
     {
         Schema::create('yearly_financials', function (Blueprint $table) {
             $table->id();
-            $table->integer('organization_id');
+            $table->integer('organization_id')->unique();
             $table->string(Str::lower(Str::snake('PyContributionsGrantsAmt', '_')))->nullable();
             $table->string(Str::lower(Str::snake('CyContributionsGrantsAmt', '_')))->nullable();
             $table->string(Str::lower(Str::snake('PyProgramServiceRevenueAmt', '_')))->nullable();

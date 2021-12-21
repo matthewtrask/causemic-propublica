@@ -15,7 +15,7 @@ class CreatePdfsTable extends Migration
     {
         Schema::create('pdfs', function (Blueprint $table) {
             $table->id();
-            $table->integer('organization_id');
+            $table->integer('organization_id')->unique();
             $table->string('pdf_link_1')->nullable();
             $table->string('pdf_link_2')->nullable();
             $table->string('pdf_link_3')->nullable();

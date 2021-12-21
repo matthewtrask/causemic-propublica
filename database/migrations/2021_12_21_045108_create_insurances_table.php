@@ -3,8 +3,9 @@
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Str;
 
-class CreateOrganizationMembersTable extends Migration
+class CreateInsurancesTable extends Migration
 {
     /**
      * Run the migrations.
@@ -13,13 +14,12 @@ class CreateOrganizationMembersTable extends Migration
      */
     public function up()
     {
-        Schema::create('organization_members', function (Blueprint $table) {
+        Schema::create('insurances', function (Blueprint $table) {
             $table->id();
             $table->integer('organization_id')->unique();
-            $table->string('person_name')->nullable();
-            $table->string('title')->nullable();
-            $table->string('reportable_comp_amt_from_org')->nullable();
-            $table->string('other_comp_amt')->nullable();
+            $table->string(Str::lower(Str::snake('InsuranceGrpTotalAmt', '_')))->nullable();
+            $table->string(Str::lower(Str::snake('InsuranceGrpProgramServicesAmt', '_')))->nullable();
+            $table->string(Str::lower(Str::snake('InsuranceGrpManagementAndGeneralAmt', '_')))->nullable();
             $table->timestamps();
         });
     }
@@ -31,6 +31,6 @@ class CreateOrganizationMembersTable extends Migration
      */
     public function down()
     {
-        Schema::dropIfExists('organization_members');
+        Schema::dropIfExists('insurances');
     }
 }

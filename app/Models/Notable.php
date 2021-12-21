@@ -10,6 +10,7 @@ class Notable extends Model
     use HasFactory;
 
     protected $fillable = [
+        'organization_id',
         'notable_contribution',
         'notable_program_services',
         'notable_investment_income',

@@ -5,7 +5,7 @@ use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 
-class CreateMiscOtherRevenuesTable extends Migration
+class CreateInformationTechesTable extends Migration
 {
     /**
      * Run the migrations.
@@ -14,12 +14,12 @@ class CreateMiscOtherRevenuesTable extends Migration
      */
     public function up()
     {
-        Schema::create('misc_other_revenues', function (Blueprint $table) {
+        Schema::create('information_teches', function (Blueprint $table) {
             $table->id();
             $table->integer('organization_id')->unique();
-            $table->string('desc')->nullable();
-            $table->string('business_cd')->nullable();
-            $table->string('total_revenue_column_amt')->nullable();
+            $table->string(Str::lower(Str::snake('InformationTechnologyGrpTotalAmt', '_')))->nullable();
+            $table->string(Str::lower(Str::snake('InformationTechnologyGrpProgramServicesAmt', '_')))->nullable();
+            $table->string(Str::lower(Str::snake('InformationTechnologyGrpFundraisingAmt', '_')))->nullable();
             $table->timestamps();
         });
     }
@@ -31,6 +31,6 @@ class CreateMiscOtherRevenuesTable extends Migration
      */
     public function down()
     {
-        Schema::dropIfExists('misc_other_revenues');
+        Schema::dropIfExists('information_teches');
     }
 }

@@ -2,9 +2,31 @@
 
 namespace App\Console\Commands;
 
-use App\Models\Classification;
+use App\Models\Advertising;
+use App\Models\Comp;
+use App\Models\ConferenceMeeting;
+use App\Models\DeprecationDepletion;
+use App\Models\EmployeeBenefit;
+use App\Models\Fee;
+use App\Models\Grant;
+use App\Models\InformationTech;
+use App\Models\Insurance;
+use App\Models\MiscFinancial;
+use App\Models\MiscOtherRevenue;
+use App\Models\Notable;
+use App\Models\Occupancy;
+use App\Models\OfficeExpense;
 use App\Models\Organization;
+use App\Models\OrganizationMember;
+use App\Models\AllOtherExpense;
+use App\Models\OtherExpense;
+use App\Models\OtherRevenue;
+use App\Models\PayrollTax;
 use App\Models\Pdf;
+use App\Models\Pension;
+use App\Models\TotalFunctionalExpense;
+use App\Models\TotalRevenue;
+use App\Models\YearlyFinancial;
 use Illuminate\Console\Command;
 use Illuminate\Support\Str;
 use Spatie\SimpleExcel\SimpleExcelReader;
@@ -16,7 +38,7 @@ class ImportCsvData extends Command
      *
      * @var string
      */
-    protected $signature = 'data:import';
+    protected $signature = 'data:import {file}';
 
     /**
      * The console command description.
@@ -32,15 +54,17 @@ class ImportCsvData extends Command
      */
     public function handle()
     {
-        $rows = SimpleExcelReader::create(base_path('data.csv'))->getRows();
+        $file = $this->input->getArgument('file');
+        $rows = SimpleExcelReader::create(base_path($file))->getRows();
 
         $rows->each(function(array $row) {
             $organization = Organization::firstOrCreate([
-                'propublica_url' => $row['CompanyURL']
+                'propublica_url' => $row['CompanyURL'],
+                'ein' => $row['EIN'],
+                'tax_year' => $row['TaxYear'],
             ]);
 
             $organization->name = Str::title($row['Filer-BusinessName-BusinessNameLine1Txt']);
-            $organization->ein = $row['EIN'];
             $organization->city = Str::title(Str::before($row['Address'], ','));
             $organization->state = Str::after(Str::beforeLast($row['Address'], ' '), ',');
             $organization->zip_code = Str::afterLast($row['Address'], ' ');
@@ -50,7 +74,6 @@ class ImportCsvData extends Command
             $organization->net_income = $row['NetIncome'];
             $organization->exempt_since = Str::after($row['Tax Exempt Since'], 'since ');
             $organization->tax_period_end_date = $row['TaxPeriodEndDt'];
-            $organization->tax_year = $row['TaxYear'];
             $organization->return_header_tax_year = $row['ReturnHeader-TaxYr'];
             $organization->tax_code_description = Str::after($row['Nonprofit Tax Code Designation'], ':');
             $organization->principle_officer = Str::title($row['IRS990-PrincipalOfficerNm']);
@@ -72,8 +95,10 @@ class ImportCsvData extends Command
             $organization->net_unrelated_bus_taxable_amt = $row['IRS990-NetUnrelatedBusTxblIncmAmt'];
             $organization->raw_xml = $row['Raw XML'];
             $organization->form_990_part_VII_section_a_grp = $row['Form990PartVIISectionAGrp'];
-            $organization->cy_gross_investment_income_170_grp_amt = $row['GrossInvestmentIncome170Grp-CurrentTaxYearAmt'];
-            $organization->cy_other_income_170_grp_amt = $row['OtherIncome170Grp-CurrentTaxYearAmt'];
+            $organization->gross_investment_income_170_grp_current_tax_year_amt = $row['GrossInvestmentIncome170Grp-CurrentTaxYearAmt'];
+            $organization->other_income_170_grp_current_tax_year_amt = $row['OtherIncome170Grp-CurrentTaxYearAmt'];
+            $organization->recipient_table = $row['RecipientTable'];
+            $organization->error = $row['error'];
             $organization->save();
 
             $this->storeNotableAmounts($organization, $row);
@@ -82,6 +107,24 @@ class ImportCsvData extends Command
             $this->storeOrganizationMembers($organization, $row);
             $this->storeYearlyFinancialData($organization, $row);
             $this->storeMiscFinancialData($organization, $row);
+            $this->storeMiscOtherFinancialData($organization, $row);
+            $this->storeTotalRevenue($organization, $row);
+            $this->storeGrantData($organization, $row);
+            $this->storeCompData($organization, $row);
+            $this->storePensionData($organization, $row);
+            $this->storeEmployeeBenefitsData($organization, $row);
+            $this->storePayrollTaxData($organization, $row);
+            $this->storeFeeData($organization, $row);
+            $this->storeAdvertisingData($organization, $row);
+            $this->storeOfficeExpenseData($organization, $row);
+            $this->storeInformationTechData($organization, $row);
+            $this->storeOccupancyData($organization, $row);
+            $this->storeConferenceMeetingData($organization, $row);
+            $this->storeDeprecationDeletionData($organization, $row);
+            $this->storeInsuranceData($organization, $row);
+            $this->storeAllOtherExpenseData($organization, $row);
+            $this->storeOtherExpenseData($organization, $row);
+            $this->storeTotalFunctionalExpenseData($organization, $row);
         });
 
         return 0;
@@ -89,7 +132,9 @@ class ImportCsvData extends Command
 
     private function storePdfLinks(Organization $organization, array $row)
     {
-        $organization->pdfLinks()->create([
+        Pdf::updateOrCreate([
+            'organization_id' => $organization->id,
+        ], [
             'pdf_link_1' => $row['PDFLink_1'],
             'pdf_link_2' => $row['PDFLink_2'],
             'pdf_link_3' => $row['PDFLink_3'],
@@ -130,7 +175,9 @@ class ImportCsvData extends Command
 
 
             foreach($revenues as $revenue) {
-                $organization->otherRevenues()->create([
+                OtherRevenue::updateOrCreate([
+                    'organization_id' => $organization->id
+                ],[
                     'description' => $revenue['Desc'] ?? null,
                     'business_cd' => $revenue['BusinessCd'] ?? null,
                     'total_revenue_amt' => $revenue['TotalRevenueColumnAmt'] ?? null,
@@ -140,7 +187,9 @@ class ImportCsvData extends Command
         }
 
         if ($row['IRS990-OtherRevenueMiscGrp'] === 'NEF') {
-            $organization->otherRevenues()->create([
+            OtherRevenue::updateOrCreate([
+                'organization_id' => $organization->id
+            ],[
                 'description' => 'NEF',
                 'business_cd' => 'NEF',
                 'total_revenue_amt' => 'NEF',
@@ -149,7 +198,9 @@ class ImportCsvData extends Command
         }
 
         if ($row['IRS990-OtherRevenueMiscGrp'] === 'N/A') {
-            $organization->otherRevenues()->create([
+            OtherRevenue::updateOrCreate([
+                'organization_id' => $organization->id
+            ],[
                 'description' => 'N/A',
                 'business_cd' => 'N/A',
                 'total_revenue_amt' => 'N/A',
@@ -191,7 +242,9 @@ class ImportCsvData extends Command
             }
 
             foreach ($boardMembers as $boardMember) {
-                $organization->organizationMembers()->create([
+                OrganizationMember::updateOrCreate([
+                    'organization_id' => $organization->id
+                ],[
                     'person_name' => $boardMember['PersonNm'] ?? null,
                     'title' => $boardMember['TitleTxt'] ?? null,
                     'reportable_comp_amt_from_org' => $boardMember['ReportableCompFromOrgAmt'] ?? null,
@@ -201,7 +254,9 @@ class ImportCsvData extends Command
         }
 
         if ($row['Form990PartVIISectionAGrp'] === 'NEF') {
-            $organization->organizationMembers()->create([
+            OrganizationMember::updateOrCreate([
+                'organization_id' => $organization->id
+            ],[
                 'person_name' => 'NEF',
                 'title' => 'NEF',
                 'reportable_comp_amt_from_org' => 'NEF',
@@ -210,7 +265,9 @@ class ImportCsvData extends Command
         }
 
         if ($row['Form990PartVIISectionAGrp'] === 'N/A') {
-            $organization->organizationMembers()->create([
+            OrganizationMember::updateOrCreate([
+                'organization_id' => $organization->id
+            ],[
                 'person_name' => 'N/A',
                 'title' => 'N/A',
                 'reportable_comp_amt_from_org' => 'N/A',
@@ -221,7 +278,9 @@ class ImportCsvData extends Command
 
     private function storeNotableAmounts(Organization $organization, array $row)
     {
-        $organization->notables()->create([
+        Notable::updateOrCreate([
+            'organization_id' => $organization->id
+        ],[
             'notable_contribution' => $row['NotableContributions'],
             'notable_program_services' => $row['NotableProgramServices'],
             'notable_investment_income' => $row['NotableInvestmentIncome'],
@@ -237,7 +296,9 @@ class ImportCsvData extends Command
 
     private function storeYearlyFinancialData(Organization $organization, array $row)
     {
-        $organization->yearlyFinancial()->create([
+        YearlyFinancial::updateOrCreate([
+            'organization_id' => $organization->id,
+        ],[
             'py_contributions_grants_amt' => $row['IRS990-PYContributionsGrantsAmt'],
             'cy_contributions_grants_amt' => $row['IRS990-CYContributionsGrantsAmt'],
             'py_program_service_revenue_amt' => $row['IRS990-PYProgramServiceRevenueAmt'],
@@ -268,7 +329,9 @@ class ImportCsvData extends Command
 
     private function storeMiscFinancialData(Organization $organization, array $row)
     {
-        $organization->miscFinancial()->create([
+        MiscFinancial::updateOrCreate([
+            'organization_id' => $organization->id
+        ], [
             'total_assets_boy_amt' => $row['IRS990-TotalAssetsBOYAmt'],
             'total_assets_eoy_amt' => $row['IRS990-TotalAssetsEOYAmt'],
             'total_liabilities_boy_amt' => $row['IRS990-TotalLiabilitiesBOYAmt'],
@@ -300,191 +363,334 @@ class ImportCsvData extends Command
             'cost_of_goods_sold_amt' => $row['IRS990-CostOfGoodsSoldAmt'],
             'net_income_or_loss_grp_total_revenue_column_amt' => $row['IRS990-NetIncomeOrLossGrp-TotalRevenueColumnAmt'],
             'net_income_or_loss_grp_related_or_exempt_func_income_amt' => $row['IRS990-NetIncomeOrLossGrp-RelatedOrExemptFuncIncomeAmt'],
+            'other_revenue_total_amt' => $row['IRS990-OtherRevenueTotalAmt'],
         ]);
     }
-}
 
-//"CompanyURL" => "https://projects.propublica.org/nonprofits/organizations/526055662"
-//  "ReturnTs" => "2020-04-17T09:24:03-07:00"
-//  "Address" => "DALLAS, TX 75382-3177"
-//  "TaxPeriodEndDt" => "2019-12-31"
-//  "Tax Exempt Since" => "Tax-exempt since Dec. 1956"
-//  "Filer-EIN" => "526055662"
-//  "EIN" => "52-6055662"
-//  "Filer-BusinessName-BusinessNameLine1Txt" => "CIVIL AVIATION MEDICAL ASSOCIATION"
-//  "Classification" => "Diseases, Disorders, Medical Disciplines N.E.C."
-//  "ReturnHeader-TaxYr" => "2019"
-//  "Nonprofit Tax Code Designation" => "Defined as: Business leagues, chambers of commerce, real estate boards, etc, created for the improvement of business conditions."
-//  "Filer-PhoneNum" => "7704870100"
-//  "TaxYear" => "2019"
-//  "IRS990-PrincipalOfficerNm" => "N/A"
-//  "TotalRevenue" => "103216"
-//  "IRS990-USAddress-AddressLine1Txt" => "N/A"
-//  "TotalFuntionalExpenses" => "97111"
-//  "IRS990-USAddress-CityNm" => "N/A"
-//  "NetIncome" => "6105"
-//  "IRS990-USAddress-StateAbbreviationCd" => "N/A"
-//  "NotableContributions" => "500"
-//  "IRS990-USAddress-ZIPCd" => "N/A"
-//  "NotableProgramServices" => "73513"
-//  "IRS990-GrossReceiptsAmt" => "103216"
-//  "NotableInvestmentIncome" => "135"
-//  "IRS990-Organization501c3Ind" => "N/A"
-//  "NotableNetFundraising" => "0"
-//  "IRS990-WebsiteAddressTxt" => "N/A"
-//  "NotableSalesofAssets" => "0"
-//  "IRS990-TypeOfOrganizationCorpInd" => "N/A"
-//  "NotableNetInventorySales" => "33"
-//  "IRS990-FormationYr" => "N/A"
-//  "OtherRevenue" => "0"
-//  "IRS990-ActivityOrMissionDesc" => "N/A"
-//  "OtherTotalAssets" => "99766"
-//  "IRS990-VotingMembersGoverningBodyCnt" => "N/A"
-//  "OtherTotalLiabilities" => "1650"
-//  "IRS990-VotingMembersIndependentCnt" => "N/A"
-//  "OtherNetAssets" => "98116"
-//  "IRS990-TotalEmployeeCnt" => "N/A"
-//  "PDFLink_1" => "https://projects.propublica.org/nonprofits/display_990/526055662/12_2020_prefixes_46-54%2F526055662_201912_990EO_2020121617482051"
-//  "PDFLink_2" => "N/A"
-//  "PDFLink_3" => "N/A"
-//  "PDFLink_4" => "N/A"
-//  "IRS990-TotalVolunteersCnt" => "N/A"
-//  "FilterURL" => "https://projects.propublica.org/nonprofits/search?utf8=%E2%9C%93&q=&state%5Bid%5D=TX&ntee%5Bid%5D=4&c_code%5Bid%5D=6"
-//  "IRS990-TotalGrossUBIAmt" => "N/A"
-//  "FinancialData" => "1"
-//  "IRS990-NetUnrelatedBusTxblIncmAmt" => "N/A"
-//  "Raw XML" => "1"
-//  "IRS990-PYContributionsGrantsAmt" => "N/A"
-//  "IRS990-CYContributionsGrantsAmt" => "N/A"
-//  "IRS990-PYProgramServiceRevenueAmt" => "N/A"
-//  "IRS990-CYProgramServiceRevenueAmt" => "N/A"
-//  "IRS990-PYInvestmentIncomeAmt" => "N/A"
-//  "IRS990-CYInvestmentIncomeAmt" => "N/A"
-//  "IRS990-PYOtherRevenueAmt" => "N/A"
-//  "IRS990-CYOtherRevenueAmt" => "N/A"
-//  "IRS990-PYTotalRevenueAmt" => "N/A"
-//  "IRS990-CYTotalRevenueAmt" => "N/A"
-//  "IRS990-PYGrantsAndSimilarPaidAmt" => "N/A"
-//  "IRS990-CYGrantsAndSimilarPaidAmt" => "N/A"
-//  "IRS990-PYBenefitsPaidToMembersAmt" => "N/A"
-//  "IRS990-CYBenefitsPaidToMembersAmt" => "N/A"
-//  "IRS990-PYSalariesCompEmpBnftPaidAmt" => "N/A"
-//  "IRS990-CYSalariesCompEmpBnftPaidAmt" => "N/A"
-//  "IRS990-PYTotalProfFndrsngExpnsAmt" => "N/A"
-//  "IRS990-CYTotalProfFndrsngExpnsAmt" => "N/A"
-//  "IRS990-CYTotalFundraisingExpenseAmt" => "N/A"
-//  "IRS990-PYOtherExpensesAmt" => "N/A"
-//  "IRS990-CYOtherExpensesAmt" => "N/A"
-//  "IRS990-PYTotalExpensesAmt" => "N/A"
-//  "IRS990-CYTotalExpensesAmt" => "N/A"
-//  "IRS990-PYRevenuesLessExpensesAmt" => "N/A"
-//  "IRS990-CYRevenuesLessExpensesAmt" => "N/A"
-//  "IRS990-TotalAssetsBOYAmt" => "N/A"
-//  "IRS990-TotalAssetsEOYAmt" => "N/A"
-//  "IRS990-TotalLiabilitiesBOYAmt" => "N/A"
-//  "IRS990-TotalLiabilitiesEOYAmt" => "N/A"
-//  "IRS990-NetAssetsOrFundBalancesBOYAmt" => "92011"
-//  "IRS990-NetAssetsOrFundBalancesEOYAmt" => "98116"
-//  "IRS990-MissionDesc" => "N/A"
-//  "IRS990-ProfessionalFundraisingInd" => "N/A"
-//  "IRS990-TaxExemptBondsInd" => "N/A"
-//  "Form990PartVIISectionAGrp" => "N/A"
-//  "IRS990-ContractorCompensationGrp" => "N/A"
-//  "IRS990-CntrctRcvdGreaterThan100KCnt" => "N/A"
-//  "IRS990-FundraisingAmt" => "N/A"
-//  "IRS990-AllOtherContributionsAmt" => "N/A"
-//  "IRS990-NoncashContributionsAmt" => "N/A"
-//  "IRS990-TotalContributionsAmt" => "N/A"
-//  "IRS990-InvestmentIncomeGrp-TotalRevenueColumnAmt" => "N/A"
-//  "IRS990-InvestmentIncomeGrp-ExclusionAmt" => "N/A"
-//  "IRS990-GrossAmountSalesAssetsGrp-SecuritiesAmt" => "N/A"
-//  "IRS990-LessCostOthBasisSalesExpnssGrp-SecuritiesAmt" => "N/A"
-//  "IRS990-GainOrLossGrp-SecuritiesAmt" => "N/A"
-//  "IRS990-NetGainOrLossInvestmentsGrp-TotalRevenueColumnAmt" => "N/A"
-//  "IRS990-NetGainOrLossInvestmentsGrp-ExclusionAmt" => "N/A"
-//  "IRS990-FundraisingGrossIncomeAmt" => "0"
-//  "IRS990-ContriRptFundraisingEventAmt" => "N/A"
-//  "IRS990-FundraisingDirectExpensesAmt" => "N/A"
-//  "IRS990-NetIncmFromFundraisingEvtGrp-TotalRevenueColumnAmt" => "N/A"
-//  "IRS990-NetIncmFromFundraisingEvtGrp-ExclusionAmt" => "N/A"
-//  "IRS990-GrossSalesOfInventoryAmt" => "33"
-//  "IRS990-CostOfGoodsSoldAmt" => "0"
-//  "IRS990-NetIncomeOrLossGrp-TotalRevenueColumnAmt" => "N/A"
-//  "IRS990-NetIncomeOrLossGrp-RelatedOrExemptFuncIncomeAmt" => "N/A"
-//  "IRS990-OtherRevenueTotalAmt" => "N/A"
-//  "IRS990-TotalRevenueGrp-TotalRevenueColumnAmt" => "N/A"
-//  "IRS990-TotalRevenueGrp-RelatedOrExemptFuncIncomeAmt" => "N/A"
-//  "IRS990-TotalRevenueGrp-UnrelatedBusinessRevenueAmt" => "N/A"
-//  "IRS990-TotalRevenueGrp-ExclusionAmt" => "N/A"
-//  "IRS990-OtherRevenueMiscGrp" => "N/A"
-//  "IRS990-GrantsToDomesticOrgsGrp-TotalAmt" => "N/A"
-//  "IRS990-GrantsToDomesticOrgsGrp-ProgramServicesAmt" => "N/A"
-//  "IRS990-GrantsToDomesticIndividualsGrp-TotalAmt" => "N/A"
-//  "IRS990-GrantsToDomesticIndividualsGrp-ProgramServicesAmt" => "N/A"
-//  "IRS990-ForeignGrantsGrp-TotalAmt" => "N/A"
-//  "IRS990-ForeignGrantsGrp-ProgramServicesAmt" => "N/A"
-//  "IRS990-CompCurrentOfcrDirectorsGrp-TotalAmt" => "N/A"
-//  "IRS990-CompCurrentOfcrDirectorsGrp-ProgramServicesAmt" => "N/A"
-//  "IRS990-CompCurrentOfcrDirectorsGrp-ManagementAndGeneralAmt" => "N/A"
-//  "IRS990-CompCurrentOfcrDirectorsGrp-FundraisingAmt" => "N/A"
-//  "IRS990-OtherSalariesAndWagesGrp-TotalAmt" => "N/A"
-//  "IRS990-OtherSalariesAndWagesGrp-ProgramServicesAmt" => "N/A"
-//  "IRS990-OtherSalariesAndWagesGrp-ManagementAndGeneralAmt" => "N/A"
-//  "IRS990-OtherSalariesAndWagesGrp-FundraisingAmt" => "N/A"
-//  "IRS990-PensionPlanContributionsGrp-TotalAmt" => "N/A"
-//  "IRS990-PensionPlanContributionsGrp-ProgramServicesAmt" => "N/A"
-//  "IRS990-PensionPlanContributionsGrp-ManagementAndGeneralAmt" => "N/A"
-//  "IRS990-PensionPlanContributionsGrp-FundraisingAmt" => "N/A"
-//  "IRS990-OtherEmployeeBenefitsGrp-TotalAmt" => "N/A"
-//  "IRS990-OtherEmployeeBenefitsGrp-ProgramServicesAmt" => "N/A"
-//  "IRS990-OtherEmployeeBenefitsGrp-ManagementAndGeneralAmt" => "N/A"
-//  "IRS990-OtherEmployeeBenefitsGrp-FundraisingAmt" => "N/A"
-//  "IRS990-PayrollTaxesGrp-TotalAmt" => "N/A"
-//  "IRS990-PayrollTaxesGrp-ProgramServicesAmt" => "N/A"
-//  "IRS990-PayrollTaxesGrp-ManagementAndGeneralAmt" => "N/A"
-//  "IRS990-PayrollTaxesGrp-FundraisingAmt" => "N/A"
-//  "IRS990-FeesForServicesAccountingGrp-TotalAmt" => "N/A"
-//  "IRS990-FeesForServicesAccountingGrp-ManagementAndGeneralAmt" => "N/A"
-//  "IRS990-FeesForServicesOtherGrp-TotalAmt" => "N/A"
-//  "IRS990-FeesForServicesOtherGrp-ProgramServicesAmt" => "N/A"
-//  "IRS990-FeesForServicesOtherGrp-ManagementAndGeneralAmt" => "N/A"
-//  "IRS990-FeesForServicesOtherGrp-FundraisingAmt" => "N/A"
-//  "IRS990-AdvertisingGrp-TotalAmt" => "N/A"
-//  "IRS990-AdvertisingGrp-ProgramServicesAmt" => "N/A"
-//  "IRS990-AdvertisingGrp-ManagementAndGeneralAmt" => "N/A"
-//  "IRS990-AdvertisingGrp-FundraisingAmt" => "N/A"
-//  "IRS990-OfficeExpensesGrp-TotalAmt" => "N/A"
-//  "IRS990-OfficeExpensesGrp-ProgramServicesAmt" => "N/A"
-//  "IRS990-OfficeExpensesGrp-ManagementAndGeneralAmt" => "N/A"
-//  "IRS990-OfficeExpensesGrp-FundraisingAmt" => "N/A"
-//  "IRS990-InformationTechnologyGrp-TotalAmt" => "N/A"
-//  "IRS990-InformationTechnologyGrp-ProgramServicesAmt" => "N/A"
-//  "IRS990-InformationTechnologyGrp-FundraisingAmt" => "N/A"
-//  "IRS990-OccupancyGrp-TotalAmt" => "N/A"
-//  "IRS990-OccupancyGrp-ProgramServicesAmt" => "N/A"
-//  "IRS990-OccupancyGrp-ManagementAndGeneralAmt" => "N/A"
-//  "IRS990-OccupancyGrp-FundraisingAmt" => "N/A"
-//  "IRS990-ConferencesMeetingsGrp-TotalAmt" => "N/A"
-//  "IRS990-ConferencesMeetingsGrp-ProgramServicesAmt" => "N/A"
-//  "IRS990-ConferencesMeetingsGrp-ManagementAndGeneralAmt" => "N/A"
-//  "IRS990-ConferencesMeetingsGrp-FundraisingAmt" => "N/A"
-//  "IRS990-DepreciationDepletionGrp-TotalAmt" => "N/A"
-//  "IRS990-DepreciationDepletionGrp-ProgramServicesAmt" => "N/A"
-//  "IRS990-DepreciationDepletionGrp-ManagementAndGeneralAmt" => "N/A"
-//  "IRS990-DepreciationDepletionGrp-FundraisingAmt" => "N/A"
-//  "IRS990-InsuranceGrp-TotalAmt" => "N/A"
-//  "IRS990-InsuranceGrp-ProgramServicesAmt" => "N/A"
-//  "IRS990-InsuranceGrp-ManagementAndGeneralAmt" => "N/A"
-//  "IRS990-OtherExpensesGrp" => "N/A"
-//  "IRS990-AllOtherExpensesGrp-TotalAmt" => "N/A"
-//  "IRS990-AllOtherExpensesGrp-ProgramServicesAmt" => "N/A"
-//  "IRS990-AllOtherExpensesGrp-ManagementAndGeneralAmt" => "N/A"
-//  "IRS990-AllOtherExpensesGrp-FundraisingAmt" => "N/A"
-//  "IRS990-TotalFunctionalExpensesGrp-TotalAmt" => "N/A"
-//  "IRS990-TotalFunctionalExpensesGrp-ProgramServicesAmt" => "N/A"
-//  "IRS990-TotalFunctionalExpensesGrp-ManagementAndGeneralAmt" => "N/A"
-//  "IRS990-TotalFunctionalExpensesGrp-FundraisingAmt" => "N/A"
-//  "GrossInvestmentIncome170Grp-CurrentTaxYearAmt" => "N/A"
-//  "OtherIncome170Grp-CurrentTaxYearAmt" => "N/A"
-//  "RecipientTable" => "N/A"
-//  "error" => ""
+    private function storeMiscOtherFinancialData(Organization $organization, array $row)
+    {
+        if ($row['IRS990-OtherRevenueMiscGrp'] !== 'NEF' && $row['IRS990-OtherRevenueMiscGrp'] !== 'N/A') {
+            $miscFinancials = explode('},{', $row['IRS990-OtherRevenueMiscGrp']);
+            $financials = [];
+
+            foreach ($miscFinancials as $key => $miscFinancial) {
+                // strip out the fake json brackets
+                if (Str::contains($miscFinancial, '{')) {
+                    $miscFinancial = Str::after($miscFinancial, '{');
+                }
+
+                if (Str::contains($miscFinancial, '}')) {
+                    $miscFinancial = Str::before($miscFinancial, '}');
+                }
+
+                $tmpMemberData = explode(', ', $miscFinancial);
+
+                foreach ($tmpMemberData as $person) {
+                    if (Str::contains($person, '=')) {
+                        $explodedData = explode('=', $person);
+
+                        if ($explodedData) {
+                            $financials[$key][$explodedData[0]] = isset($explodedData[1]) ? Str::title($explodedData[1]) : null;
+                        }
+                    } else {
+                        $financials[$key][$person] = null;
+                    }
+                }
+            }
+
+
+            foreach ($financials as $financial) {
+                MiscOtherRevenue::updateOrCreate([
+                    'organization_id' => $organization->id
+                ],[
+                    'desc' => $financial['Desc'] ?? null,
+                    'business_cd' => $financial['BusinessCd'] ?? null,
+                    'total_revenue_column_amt' => $financial['TotalRevenueColumnAmt'] ?? null,
+                ]);
+            }
+        }
+
+        if ($row['IRS990-OtherRevenueMiscGrp'] === 'NEF') {
+            MiscOtherRevenue::firstOrCreate([
+                'organization_id' => $organization->id
+            ], [
+                'desc' => 'NEF',
+                'business_cd' => 'NEF',
+                'total_revenue_column_amt' => 'NEF',
+           ]);
+        }
+
+        if ($row['IRS990-OtherRevenueMiscGrp'] === 'N/A') {
+            MiscOtherRevenue::updateOrcreate([
+                'organization_id' => $organization->id
+            ], [
+                'desc' => 'N/A',
+                'business_cd' => 'N/A',
+                'total_revenue_column_amt' => 'N/A',
+           ]);
+        }
+    }
+
+    private function storeTotalRevenue(Organization $organization, array $row)
+    {
+        TotalRevenue::updateOrCreate([
+                'organization_id' => $organization->id
+        ], [
+            'total_revenue_column_amt' => $row['IRS990-TotalRevenueGrp-TotalRevenueColumnAmt'],
+            'related_or_exempt_func_income_amt' => $row['IRS990-TotalRevenueGrp-RelatedOrExemptFuncIncomeAmt'],
+            'unrelated_business_revenue_amt' => $row['IRS990-TotalRevenueGrp-UnrelatedBusinessRevenueAmt'],
+            'exclusion_amt' => $row['IRS990-TotalRevenueGrp-ExclusionAmt'],
+        ]);
+    }
+
+    private function storeGrantData(Organization $organization, array $row)
+    {
+        Grant::updateOrCreate([
+            'organization_id' => $organization->id,
+        ], [
+            'grants_to_domestic_orgs_grp_total_amt' => $row['IRS990-GrantsToDomesticOrgsGrp-TotalAmt'],
+            'grants_to_domestic_orgs_grp_program_services_amt' => $row['IRS990-GrantsToDomesticOrgsGrp-ProgramServicesAmt'],
+            'grants_to_domestic_individuals_grp_total_amt' => $row['IRS990-GrantsToDomesticIndividualsGrp-TotalAmt'],
+            'grants_to_domestic_individuals_grp_program_services_amt' => $row['IRS990-GrantsToDomesticIndividualsGrp-ProgramServicesAmt'],
+            'foreign_grants_grp_total_amt' => $row['IRS990-ForeignGrantsGrp-TotalAmt'],
+            'foreign_grants_grp_program_services_amt' => $row['IRS990-ForeignGrantsGrp-ProgramServicesAmt'],
+        ]);
+    }
+
+    private function storeCompData(Organization $organization, array $row)
+    {
+        Comp::updateOrCreate([
+            'organization_id' => $organization->id,
+        ], [
+            'comp_current_ofcr_directors_grp_total_amt' => $row['IRS990-CompCurrentOfcrDirectorsGrp-TotalAmt'],
+            'comp_current_ofcr_directors_grp_program_services_amt' => $row['IRS990-CompCurrentOfcrDirectorsGrp-ProgramServicesAmt'],
+            'comp_current_ofcr_directors_grp_management_and_general_amt' => $row['IRS990-CompCurrentOfcrDirectorsGrp-ManagementAndGeneralAmt'],
+            'comp_current_ofcr_directors_grp_fundraising_amt' => $row['IRS990-CompCurrentOfcrDirectorsGrp-FundraisingAmt'],
+            'other_salaries_and_wages_grp_total_amt' => $row['IRS990-OtherSalariesAndWagesGrp-TotalAmt'],
+            'other_salaries_and_wages_grp_program_services_amt' => $row['IRS990-OtherSalariesAndWagesGrp-ProgramServicesAmt'],
+            'other_salaries_and_wages_grp_management_and_general_amt' => $row['IRS990-OtherSalariesAndWagesGrp-ManagementAndGeneralAmt'],
+            'other_salaries_and_wages_grp_fundraising_amt' => $row['IRS990-OtherSalariesAndWagesGrp-FundraisingAmt'],
+        ]);
+    }
+
+    private function storePensionData(Organization $organization, array $row)
+    {
+        Pension::updateOrCreate([
+            'organization_id' => $organization->id,
+        ], [
+            'pension_plan_contributions_grp_total_amt' => $row['IRS990-PensionPlanContributionsGrp-TotalAmt'],
+            'pension_plan_contributions_grp_program_services_amt' => $row['IRS990-PensionPlanContributionsGrp-ProgramServicesAmt'],
+            'pension_plan_contributions_grp_management_and_general_amt' => $row['IRS990-PensionPlanContributionsGrp-ManagementAndGeneralAmt'],
+            'pension_plan_contributions_grp_fundraising_amt' => $row['IRS990-PensionPlanContributionsGrp-FundraisingAmt'],
+        ]);
+    }
+
+    private function storeEmployeeBenefitsData(Organization $organization, array $row)
+    {
+        EmployeeBenefit::updateOrCreate([
+           'organization_id' => $organization->id,
+        ], [
+            'other_employee_benefits_grp_total_amt' => $row['IRS990-OtherEmployeeBenefitsGrp-TotalAmt'],
+            'other_employee_benefits_grp_program_services_amt' => $row['IRS990-OtherEmployeeBenefitsGrp-ProgramServicesAmt'],
+            'other_employee_benefits_grp_management_and_general_amt' => $row['IRS990-OtherEmployeeBenefitsGrp-ManagementAndGeneralAmt'],
+            'other_employee_benefits_grp_fundraising_amt' => $row['IRS990-OtherEmployeeBenefitsGrp-FundraisingAmt']
+        ]);
+    }
+
+    private function storePayrollTaxData(Organization $organization, array $row)
+    {
+        PayrollTax::updateOrCreate([
+            'organization_id' => $organization->id
+        ], [
+            'organization_id',
+            'payroll_taxes_grp_total_amt' => $row['IRS990-PayrollTaxesGrp-TotalAmt'],
+            'payroll_taxes_grp_program_services_amt' => $row['IRS990-PayrollTaxesGrp-ProgramServicesAmt'],
+            'payroll_taxes_grp_management_and_general_amt' => $row['IRS990-PayrollTaxesGrp-ManagementAndGeneralAmt'],
+            'payroll_taxes_grp_fundraising_amt' => $row['IRS990-PayrollTaxesGrp-FundraisingAmt'],
+        ]);
+    }
+
+    private function storeFeeData(Organization $organization, array $row)
+    {
+        Fee::updateOrCreate([
+            'organization_id' => $organization->id,
+        ], [
+            'fees_for_services_accounting_grp_total_amt' => $row['IRS990-FeesForServicesAccountingGrp-TotalAmt'],
+            'fees_for_services_accounting_grp_management_and_general_amt' => $row['IRS990-FeesForServicesAccountingGrp-ManagementAndGeneralAmt'],
+            'fees_for_services_other_grp_total_amt' => $row['IRS990-FeesForServicesOtherGrp-TotalAmt'],
+            'fees_for_services_other_grp_program_services_amt' => $row['IRS990-FeesForServicesOtherGrp-ProgramServicesAmt'],
+            'fees_for_services_other_grp_management_and_general_amt' => $row['IRS990-FeesForServicesOtherGrp-ManagementAndGeneralAmt'],
+            'fees_for_services_other_grp_fundraising_amt' => $row['IRS990-FeesForServicesOtherGrp-FundraisingAmt'],
+        ]);
+    }
+
+    private function storeAdvertisingData(Organization $organization, array $row)
+    {
+        Advertising::updateOrCreate([
+            'organization_id' => $organization->id
+        ], [
+            'advertising_grp_total_amt' => $row['IRS990-AdvertisingGrp-TotalAmt'],
+            'advertising_grp_program_services_amt' => $row['IRS990-AdvertisingGrp-ProgramServicesAmt'],
+            'advertising_grp_management_and_general_amt' => $row['IRS990-AdvertisingGrp-ManagementAndGeneralAmt'],
+            'advertising_grp_fundraising_amt' => $row['IRS990-AdvertisingGrp-FundraisingAmt'],
+        ]);
+    }
+
+    private function storeOfficeExpenseData(Organization $organization, array $row)
+    {
+        OfficeExpense::updateOrCreate([
+            'organization_id' => $organization->id
+        ], [
+            'office_expenses_grp_total_amt' => $row['IRS990-OfficeExpensesGrp-TotalAmt'],
+            'office_expenses_grp_program_services_amt' => $row['IRS990-OfficeExpensesGrp-ProgramServicesAmt'],
+            'office_expenses_grp_management_and_general_amt' => $row['IRS990-OfficeExpensesGrp-ManagementAndGeneralAmt'],
+            'office_expenses_grp_fundraising_amt' => $row['IRS990-OfficeExpensesGrp-FundraisingAmt'],
+        ]);
+    }
+
+    private function storeInformationTechData(Organization $organization, array $row)
+    {
+        InformationTech::updateOrCreate([
+            'organization_id' => $organization->id
+        ], [
+            'information_technology_grp_total_amt' => $row['IRS990-InformationTechnologyGrp-TotalAmt'],
+            'information_technology_grp_program_services_amt' => $row['IRS990-InformationTechnologyGrp-ProgramServicesAmt'],
+            'information_technology_grp_fundraising_amt' => $row['IRS990-InformationTechnologyGrp-FundraisingAmt'],
+        ]);
+    }
+
+    private function storeOccupancyData(Organization $organization, array $row)
+    {
+        Occupancy::updateOrCreate([
+            'organization_id' => $organization->id
+        ], [
+            'occupancy_grp_total_amt' => $row['IRS990-OccupancyGrp-TotalAmt'],
+            'occupancy_grp_program_services_amt' => $row['IRS990-OccupancyGrp-ProgramServicesAmt'],
+            'occupancy_grp_management_and_general_amt' => $row['IRS990-OccupancyGrp-ManagementAndGeneralAmt'],
+            'occupancy_grp_fundraising_amt' => $row['IRS990-OccupancyGrp-FundraisingAmt'],
+        ]);
+    }
+
+    private function storeConferenceMeetingData(Organization $organization, array $row)
+    {
+        ConferenceMeeting::updateOrCreate([
+            'organization_id' => $organization->id
+        ], [
+            'conferences_meetings_grp_total_amt' => $row['IRS990-ConferencesMeetingsGrp-TotalAmt'],
+            'conferences_meetings_grp_program_services_amt' => $row['IRS990-ConferencesMeetingsGrp-ProgramServicesAmt'],
+            'conferences_meetings_grp_management_and_general_amt' => $row['IRS990-ConferencesMeetingsGrp-ManagementAndGeneralAmt'],
+            'conferences_meetings_grp_fundraising_amt' => $row['IRS990-ConferencesMeetingsGrp-FundraisingAmt'],
+        ]);
+    }
+
+    private function storeDeprecationDeletionData(Organization $organization, array $row)
+    {
+        DeprecationDepletion::updateOrCreate([
+            'organization_id' => $organization->id
+        ], [
+            'depreciation_depletion_grp_total_amt' => $row['IRS990-DepreciationDepletionGrp-TotalAmt'],
+            'depreciation_depletion_grp_program_services_amt' => $row['IRS990-DepreciationDepletionGrp-ProgramServicesAmt'],
+            'depreciation_depletion_grp_management_and_general_amt' => $row['IRS990-DepreciationDepletionGrp-ManagementAndGeneralAmt'],
+            'depreciation_depletion_grp_fundraising_amt' => $row['IRS990-DepreciationDepletionGrp-FundraisingAmt'],
+        ]);
+    }
+
+    private function storeInsuranceData(Organization $organization, array $row)
+    {
+        Insurance::updateOrCreate([
+            'organization_id' => $organization->id
+        ], [
+            'insurance_grp_total_amt' => $row['IRS990-InsuranceGrp-TotalAmt'],
+            'insurance_grp_program_services_amt' => $row['IRS990-InsuranceGrp-ProgramServicesAmt'],
+            'insurance_grp_management_and_general_amt' => $row['IRS990-InsuranceGrp-ManagementAndGeneralAmt'],
+        ]);
+    }
+
+    private function storeAllOtherExpenseData(Organization $organization, array $row)
+    {
+        AllOtherExpense::updateOrCreate([
+            'organization_id' => $organization->id
+        ], [
+            'all_other_expenses_grp_total_amt' => $row['IRS990-AllOtherExpensesGrp-TotalAmt'],
+            'all_other_expenses_grp_program_services_amt' => $row['IRS990-AllOtherExpensesGrp-ProgramServicesAmt'],
+            'all_other_expenses_grp_management_and_general_amt' => $row['IRS990-AllOtherExpensesGrp-ManagementAndGeneralAmt'],
+            'all_other_expenses_grp_fundraising_amt' => $row['IRS990-AllOtherExpensesGrp-FundraisingAmt'],
+        ]);
+    }
+
+    private function storeTotalFunctionalExpenseData($organization, array $row)
+    {
+        TotalFunctionalExpense::updateOrCreate([
+            'organization_id' => $organization->id
+        ], [
+            'total_functional_expenses_ggrp_total_amt' => $row['IRS990-TotalFunctionalExpensesGrp-TotalAmt'],
+            'total_functional_expenses_ggrp_program_services_amt' => $row['IRS990-TotalFunctionalExpensesGrp-ProgramServicesAmt'],
+            'total_functional_expenses_ggrp_management_and_general_amt' => $row['IRS990-TotalFunctionalExpensesGrp-ManagementAndGeneralAmt'],
+            'total_functional_expenses_ggrp_fundraising_amt' => $row['IRS990-TotalFunctionalExpensesGrp-FundraisingAmt'],
+        ]);
+    }
+
+    private function storeOtherExpenseData(Organization $organization, array $row)
+    {
+        if ($row['IRS990-OtherExpensesGrp'] !== 'NEF' && $row['IRS990-OtherExpensesGrp'] !== 'N/A') {
+            $otherExpenses = explode('},{', $row['IRS990-OtherExpensesGrp']);
+            $expenses = [];
+
+            foreach ($otherExpenses as $key => $otherExpense) {
+                // strip out the fake json brackets
+                if (Str::contains($otherExpense, '{')) {
+                    $otherExpense = Str::after($otherExpense, '{');
+                }
+
+                if (Str::contains($otherExpense, '}')) {
+                    $otherExpense = Str::before($otherExpense, '}');
+                }
+
+                $tmpExpenses = explode(', ', $otherExpense);
+
+                foreach ($tmpExpenses as $expense) {
+                    if (Str::contains($expense, '=')) {
+                        $explodedData = explode('=', $expense);
+
+                        if ($explodedData) {
+                            $expenses[$key][$explodedData[0]] = isset($explodedData[1]) ? Str::title($explodedData[1]) : null;
+                        }
+                    } else {
+                        $expenses[$key][$expense] = null;
+                    }
+                }
+            }
+
+
+            foreach ($expenses as $financial) {
+                OtherExpense::updateOrCreate([
+                    'organization_id' => $organization->id
+                ],[
+                    'desc' => $financial['Desc'] ?? null,
+                    'total_amount' => $financial['BusinessCd'] ?? null,
+                    'program_services_amt' => $financial['TotalRevenueColumnAmt'] ?? null,
+                ]);
+            }
+        }
+
+        if ($row['IRS990-OtherExpensesGrp'] === 'NEF') {
+            OtherExpense::create([
+                'organization_id' => $organization->id],
+                [
+                    'desc' => 'NEF',
+                    'total_amount' => 'NEF',
+                    'program_services_amt' => 'NEF',
+                ]);
+        }
+
+        if ($row['IRS990-OtherExpensesGrp'] === 'N/A') {
+            OtherExpense::updateOrcreate([
+                'organization_id' => $organization->id
+            ], [
+                'desc' => 'N/A',
+                'total_amount' => 'N/A',
+                'program_services_amt' => 'N/A',
+            ]);
+        }
+    }
+}

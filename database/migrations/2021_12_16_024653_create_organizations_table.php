@@ -49,8 +49,10 @@ class CreateOrganizationsTable extends Migration
             $table->string('net_unrelated_bus_taxable_amt')->nullable();
             $table->string('raw_xml')->nullable();
             $table->text('form_990_part_VII_section_a_grp')->nullable();
-            $table->text('cy_gross_investment_income_170_grp_amt')->nullable(); //GrossInvestmentIncome170Grp-CurrentTaxYearAmt
-            $table->text('cy_other_income_170_grp_amt')->nullable(); //OtherIncome170Grp-CurrentTaxYearAmt
+            $table->text('gross_investment_income_170_grp_current_tax_year_amt')->nullable(); //GrossInvestmentIncome170Grp-CurrentTaxYearAmt
+            $table->text('other_income_170_grp_current_tax_year_amt')->nullable(); //OtherIncome170Grp-CurrentTaxYearAmt
+            $table->text('recipient_table')->nullable();
+            $table->text('error')->nullable();
             $table->timestamps();
         });
     }

@@ -10,6 +10,7 @@ class YearlyFinancial extends Model
     use HasFactory;
 
     protected $fillable = [
+        'organization_id',
         'py_contributions_grants_amt',
         'cy_contributions_grants_amt',
         'py_program_service_revenue_amt',

@@ -10,6 +10,7 @@ class MiscFinancial extends Model
     use HasFactory;
 
     protected $fillable = [
+        'organization_id',
         'total_assets_boy_amt',
         'total_assets_eoy_amt',
         'total_liabilities_boy_amt',
@@ -40,6 +41,7 @@ class MiscFinancial extends Model
         'cost_of_goods_sold_amt',
         'net_income_or_loss_grp_total_revenue_column_amt',
         'net_income_or_loss_grp_related_or_exempt_func_income_amt',
-        'fundraising_direct_expenses_amt'
+        'fundraising_direct_expenses_amt',
+        'other_revenue_total_amt'
     ];
 }
