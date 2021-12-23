@@ -68,6 +68,7 @@ class ImportCsvData extends Command
             ]);
 
             $organization->name = Str::title($row['Filer-BusinessName-BusinessNameLine1Txt']);
+            $organization->address = Str::title($row['IRS990-USAddress-AddressLine1Txt']);
             $organization->city = Str::title(Str::before($row['Address'], ','));
             $organization->state = Str::after(Str::beforeLast($row['Address'], ' '), ',');
             $organization->zip_code = Str::afterLast($row['Address'], ' ');
