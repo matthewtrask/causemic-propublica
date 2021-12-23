@@ -609,10 +609,10 @@ class ImportCsvData extends Command
         TotalFunctionalExpense::updateOrCreate([
             'organization_id' => $organization->id
         ], [
-            'total_functional_expenses_ggrp_total_amt' => $row['IRS990-TotalFunctionalExpensesGrp-TotalAmt'],
-            'total_functional_expenses_ggrp_program_services_amt' => $row['IRS990-TotalFunctionalExpensesGrp-ProgramServicesAmt'],
-            'total_functional_expenses_ggrp_management_and_general_amt' => $row['IRS990-TotalFunctionalExpensesGrp-ManagementAndGeneralAmt'],
-            'total_functional_expenses_ggrp_fundraising_amt' => $row['IRS990-TotalFunctionalExpensesGrp-FundraisingAmt'],
+            'total_functional_expenses_grp_total_amt' => $row['IRS990-TotalFunctionalExpensesGrp-TotalAmt'],
+            'total_functional_expenses_grp_program_services_amt' => $row['IRS990-TotalFunctionalExpensesGrp-ProgramServicesAmt'],
+            'total_functional_expenses_grp_management_and_general_amt' => $row['IRS990-TotalFunctionalExpensesGrp-ManagementAndGeneralAmt'],
+            'total_functional_expenses_grp_fundraising_amt' => $row['IRS990-TotalFunctionalExpensesGrp-FundraisingAmt'],
         ]);
     }
 
