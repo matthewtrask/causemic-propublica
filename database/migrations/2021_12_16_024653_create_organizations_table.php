@@ -30,7 +30,7 @@ class CreateOrganizationsTable extends Migration
             $table->string('tax_period_end_date')->nullable();
             $table->string('tax_year')->nullable();
             $table->string('return_header_tax_year')->nullable();
-            $table->longtext('tax_code_description')->nullable();
+            $table->longtext('ntee')->nullable();
             $table->string('propublica_url');
             $table->string('principle_officer')->nullable();
             $table->string('total_functional_expenses')->nullable();

@@ -66,4 +66,9 @@ class Organization extends Model
     {
         return $this->hasOne(Comp::class);
     }
+
+    public function otherExpenses(): HasMany
+    {
+        return $this->hasMany(OtherExpense::class);
+    }
 }

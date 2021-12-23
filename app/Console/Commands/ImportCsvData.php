@@ -54,6 +54,9 @@ class ImportCsvData extends Command
      */
     public function handle()
     {
+        // todo: dba column
+        // todo: ntee -> tax_code_description
+
         $file = $this->input->getArgument('file');
         $rows = SimpleExcelReader::create(base_path($file))->getRows();
 
@@ -75,7 +78,7 @@ class ImportCsvData extends Command
             $organization->exempt_since = Str::after($row['Tax Exempt Since'], 'since ');
             $organization->tax_period_end_date = $row['TaxPeriodEndDt'];
             $organization->return_header_tax_year = $row['ReturnHeader-TaxYr'];
-            $organization->tax_code_description = Str::after($row['Nonprofit Tax Code Designation'], ':');
+            $organization->ntee = Str::after($row['Nonprofit Tax Code Designation'], ':');
             $organization->principle_officer = Str::title($row['IRS990-PrincipalOfficerNm']);
             $organization->classifications = $row['Classification'];
             $organization->mission_statement = Str::title($row['IRS990-MissionDesc']);
@@ -142,6 +145,7 @@ class ImportCsvData extends Command
         ]);
     }
 
+    // done
     private function storeOtherRevenue(Organization $organization, array $row)
     {
         if ($row['IRS990-OtherRevenueMiscGrp'] !== 'NEF' && $row['IRS990-OtherRevenueMiscGrp'] !== 'N/A') {
@@ -175,9 +179,7 @@ class ImportCsvData extends Command
 
 
             foreach($revenues as $revenue) {
-                OtherRevenue::updateOrCreate([
-                    'organization_id' => $organization->id
-                ],[
+                $organization->otherRevenues()->create([
                     'description' => $revenue['Desc'] ?? null,
                     'business_cd' => $revenue['BusinessCd'] ?? null,
                     'total_revenue_amt' => $revenue['TotalRevenueColumnAmt'] ?? null,
@@ -187,9 +189,7 @@ class ImportCsvData extends Command
         }
 
         if ($row['IRS990-OtherRevenueMiscGrp'] === 'NEF') {
-            OtherRevenue::updateOrCreate([
-                'organization_id' => $organization->id
-            ],[
+            $organization->otherRevenues()->create([
                 'description' => 'NEF',
                 'business_cd' => 'NEF',
                 'total_revenue_amt' => 'NEF',
@@ -198,9 +198,7 @@ class ImportCsvData extends Command
         }
 
         if ($row['IRS990-OtherRevenueMiscGrp'] === 'N/A') {
-            OtherRevenue::updateOrCreate([
-                'organization_id' => $organization->id
-            ],[
+            $organization->otherRevenues()->create([
                 'description' => 'N/A',
                 'business_cd' => 'N/A',
                 'total_revenue_amt' => 'N/A',
@@ -242,9 +240,7 @@ class ImportCsvData extends Command
             }
 
             foreach ($boardMembers as $boardMember) {
-                OrganizationMember::updateOrCreate([
-                    'organization_id' => $organization->id
-                ],[
+                $organization->organizationMembers()->create([
                     'person_name' => $boardMember['PersonNm'] ?? null,
                     'title' => $boardMember['TitleTxt'] ?? null,
                     'reportable_comp_amt_from_org' => $boardMember['ReportableCompFromOrgAmt'] ?? null,
@@ -254,20 +250,16 @@ class ImportCsvData extends Command
         }
 
         if ($row['Form990PartVIISectionAGrp'] === 'NEF') {
-            OrganizationMember::updateOrCreate([
-                'organization_id' => $organization->id
-            ],[
-                'person_name' => 'NEF',
-                'title' => 'NEF',
-                'reportable_comp_amt_from_org' => 'NEF',
-                'other_comp_amt' => 'NEF',
+            $organization->organizationMembers()->create([
+                'person_name' => $boardMember['PersonNm'] ?? null,
+                'title' => $boardMember['TitleTxt'] ?? null,
+                'reportable_comp_amt_from_org' => $boardMember['ReportableCompFromOrgAmt'] ?? null,
+                'other_comp_amt' => $boardMember['OtherCompensationAmt'] ?? null,
             ]);
         }
 
         if ($row['Form990PartVIISectionAGrp'] === 'N/A') {
-            OrganizationMember::updateOrCreate([
-                'organization_id' => $organization->id
-            ],[
+            $organization->organizationMembers()->create([
                 'person_name' => 'N/A',
                 'title' => 'N/A',
                 'reportable_comp_amt_from_org' => 'N/A',
@@ -400,9 +392,7 @@ class ImportCsvData extends Command
 
 
             foreach ($financials as $financial) {
-                MiscOtherRevenue::updateOrCreate([
-                    'organization_id' => $organization->id
-                ],[
+                $organization->miscOtherFinancial()->create([
                     'desc' => $financial['Desc'] ?? null,
                     'business_cd' => $financial['BusinessCd'] ?? null,
                     'total_revenue_column_amt' => $financial['TotalRevenueColumnAmt'] ?? null,
@@ -411,9 +401,7 @@ class ImportCsvData extends Command
         }
 
         if ($row['IRS990-OtherRevenueMiscGrp'] === 'NEF') {
-            MiscOtherRevenue::firstOrCreate([
-                'organization_id' => $organization->id
-            ], [
+            $organization->miscOtherFinancial()->create([
                 'desc' => 'NEF',
                 'business_cd' => 'NEF',
                 'total_revenue_column_amt' => 'NEF',
@@ -421,9 +409,7 @@ class ImportCsvData extends Command
         }
 
         if ($row['IRS990-OtherRevenueMiscGrp'] === 'N/A') {
-            MiscOtherRevenue::updateOrcreate([
-                'organization_id' => $organization->id
-            ], [
+            $organization->miscOtherFinancial()->create([
                 'desc' => 'N/A',
                 'business_cd' => 'N/A',
                 'total_revenue_column_amt' => 'N/A',
@@ -663,9 +649,7 @@ class ImportCsvData extends Command
 
 
             foreach ($expenses as $financial) {
-                OtherExpense::updateOrCreate([
-                    'organization_id' => $organization->id
-                ],[
+                $organization->otherExpenses()->create([
                     'desc' => $financial['Desc'] ?? null,
                     'total_amount' => $financial['BusinessCd'] ?? null,
                     'program_services_amt' => $financial['TotalRevenueColumnAmt'] ?? null,
@@ -674,9 +658,7 @@ class ImportCsvData extends Command
         }
 
         if ($row['IRS990-OtherExpensesGrp'] === 'NEF') {
-            OtherExpense::create([
-                'organization_id' => $organization->id],
-                [
+            $organization->otherExpenses()->create([
                     'desc' => 'NEF',
                     'total_amount' => 'NEF',
                     'program_services_amt' => 'NEF',
@@ -684,9 +666,7 @@ class ImportCsvData extends Command
         }
 
         if ($row['IRS990-OtherExpensesGrp'] === 'N/A') {
-            OtherExpense::updateOrcreate([
-                'organization_id' => $organization->id
-            ], [
+            $organization->otherExpenses()->create([
                 'desc' => 'N/A',
                 'total_amount' => 'N/A',
                 'program_services_amt' => 'N/A',
